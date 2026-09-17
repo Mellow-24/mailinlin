@@ -85,7 +85,7 @@ services:
     networks: [internal]
 
   api:
-    image: ${DOGRAH_API_IMAGE:-ghcr.io/dograh-hq/dograh-api:latest}
+    image: ${DOGRAH_API_IMAGE:-ghcr.io/dograh-hq/dograh-api:1.45.0}
     # The verified base image is preloaded on the ECS because direct GHCR
     # downloads are unreliable from this region. Source-code overrides below
     # continue to be deployed from GitHub.
