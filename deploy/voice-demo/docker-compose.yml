@@ -196,12 +196,38 @@ services:
     logging: *logging
     networks: [internal]
 
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      VOICE_DEMO_HOST: "${VOICE_DEMO_HOST:?VOICE_DEMO_HOST is required}"
+      ACME_EMAIL: "${ACME_EMAIL:?ACME_EMAIL is required}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
+    networks: [internal]
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   internal:
     driver: bridge
-

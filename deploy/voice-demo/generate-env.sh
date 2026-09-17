@@ -24,6 +24,7 @@ umask 077
   printf 'VOICE_DEMO_HOST=%s.sslip.io\n' "$server_ip"
   printf 'SERVER_IP=%s\n' "$server_ip"
   printf 'VOICE_DEMO_LOCAL_PORT=18080\n'
+  printf 'ACME_EMAIL=littermore@163.com\n'
   printf 'POSTGRES_PASSWORD=%s\n' "$(random_secret)"
   printf 'REDIS_PASSWORD=%s\n' "$(random_secret)"
   printf 'MINIO_ROOT_USER=voice_demo\n'
@@ -37,4 +38,3 @@ umask 077
 } > "$env_file"
 
 echo "Created $env_file with mode 600"
-

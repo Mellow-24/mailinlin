@@ -1,0 +1,23 @@
+{
+    email {$ACME_EMAIL}
+    servers {
+        protocols h1 h2 h3
+        timeouts {
+            read_body 60s
+            read_header 30s
+            idle 3600s
+        }
+    }
+}
+
+{$VOICE_DEMO_HOST} {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "camera=(), geolocation=()"
+    }
+
+    reverse_proxy gateway:80
+}

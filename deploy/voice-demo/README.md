@@ -1,8 +1,8 @@
 # 玲玲师傅语音演示部署
 
-这套部署只把语音演示暴露到服务器本机 `127.0.0.1:18080`。公网入口应由
-服务器已有的 Nginx、Caddy 或其他反向代理转发到该端口，因此不会占用其他
-服务的域名或容器端口。
+这套部署只把内部语音演示网关暴露到服务器本机 `127.0.0.1:18080`，并由
+独立 Caddy 容器在 `80/443` 为 `<公网IP>.sslip.io` 自动申请 HTTPS 证书。
+数据库、缓存、对象存储、API 和 UI 均不开放主机端口。
 
 公网路由经过白名单限制：
 
@@ -23,8 +23,8 @@
 4. 恢复现有演示数据库，并把当前 `YISHUI_VOICE_DEMO_TOKEN` 与
    `OSS_JWT_SECRET` 安全写入 `deploy/voice-demo/.env`。
 5. 运行 `./deploy/voice-demo/deploy.sh`。
-6. 将服务器现有 HTTPS 反向代理的独立主机名
-   `<公网IP>.sslip.io` 转发到 `http://127.0.0.1:18080`。
+6. 确认 `<公网IP>.sslip.io` 可访问。若服务器未来启用共享反向代理，可停用
+   `edge` 服务，再把该主机名转发到 `http://127.0.0.1:18080`。
 
 `.env`、数据库备份、私钥和证书都不得提交到 Git。
 
@@ -44,4 +44,3 @@ cd /opt/mailinlin
 git pull --ff-only
 ./deploy/voice-demo/deploy.sh
 ```
-
