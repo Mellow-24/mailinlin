@@ -24,8 +24,10 @@
    私密 `.env`，或迁移现有演示的 `.env`。
 4. 恢复现有演示数据库，并把当前 `YISHUI_VOICE_DEMO_TOKEN` 与
    `OSS_JWT_SECRET` 安全写入 `deploy/voice-demo/.env`。
-5. 运行 `./deploy/voice-demo/deploy.sh`。
-6. 确认 `<公网IP>.sslip.io` 可访问。若服务器未来启用共享反向代理，可停用
+5. 确保已加载 `server.env` 中 `DOGRAH_API_IMAGE` 对应的 Dograh API
+   基础镜像；该 ECS 使用预加载镜像，避免国内网络直接拉取 GHCR 失败。
+6. 运行 `./deploy/voice-demo/deploy.sh`。
+7. 确认 `<公网IP>.sslip.io` 可访问。若服务器未来启用共享反向代理，可停用
    `edge` 服务，再把该主机名转发到 `http://127.0.0.1:18080`。
 
 `.env`、数据库备份、私钥和证书都不得提交到 Git。
