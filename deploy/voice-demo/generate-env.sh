@@ -21,7 +21,7 @@ random_secret() {
 
 umask 077
 {
-  printf 'VOICE_DEMO_HOST=%s.sslip.io\n' "$server_ip"
+  printf 'VOICE_DEMO_HOST=%s\n' "$server_ip"
   printf 'SERVER_IP=%s\n' "$server_ip"
   printf 'VOICE_DEMO_LOCAL_PORT=18080\n'
   printf 'ACME_EMAIL=littermore@163.com\n'
@@ -32,7 +32,7 @@ umask 077
   printf 'TURN_SECRET=%s\n' "$(random_secret)"
   printf 'OSS_JWT_SECRET=%s\n' "$(random_secret)"
   printf 'YISHUI_VOICE_DEMO_TOKEN=replace-after-database-restore\n'
-  printf 'DOGRAH_API_IMAGE=ghcr.io/dograh-hq/dograh-api:latest\n'
+  printf 'DOGRAH_API_IMAGE=ghcr.io/dograh-hq/dograh-api:1.45.0\n'
   printf 'LOG_LEVEL=INFO\n'
   printf 'FORCE_TURN_RELAY=false\n'
 } > "$env_file"

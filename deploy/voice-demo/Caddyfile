@@ -10,7 +10,15 @@
     }
 }
 
-{$VOICE_DEMO_HOST} {
+https://{$VOICE_DEMO_HOST} {
+    # Let's Encrypt requires its short-lived profile for public IP address
+    # certificates. Caddy renews these certificates automatically.
+    tls {
+        issuer acme {
+            profile shortlived
+        }
+    }
+
     encode zstd gzip
 
     header {
