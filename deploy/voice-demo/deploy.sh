@@ -19,6 +19,6 @@ fi
 cd "$repo_dir"
 compose=(docker compose --env-file "$env_file" --env-file "$server_env_file" -f "$compose_file")
 "${compose[@]}" config --quiet
-"${compose[@]}" pull postgres redis minio coturn gateway edge
+"${compose[@]}" pull postgres redis coturn gateway edge
 "${compose[@]}" up -d --build --remove-orphans
 "${compose[@]}" ps
