@@ -129,6 +129,7 @@ services:
       - ../../api/services/configuration/ai_model_configuration.py:/app/api/services/configuration/ai_model_configuration.py:ro
       - ../../api/db/organization_configuration_client.py:/app/api/db/organization_configuration_client.py:ro
       - ../../api/db/workflow_run_client.py:/app/api/db/workflow_run_client.py:ro
+      - ../../api/alembic/versions:/app/api/alembic/versions:ro
       - ../../api/routes/public_embed.py:/app/api/routes/public_embed.py:ro
       - ../../api/utils/url_security.py:/app/api/utils/url_security.py:ro
       - ../../api/services/dashscope:/app/api/services/dashscope:ro
