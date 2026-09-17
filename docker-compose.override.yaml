@@ -1,0 +1,51 @@
+# Local-only host port overrides. Dograh containers continue to communicate on
+# postgres:5432 and redis:6379; these mappings avoid colliding with services
+# already running on the developer Mac.
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:15432:5432"
+
+  redis:
+    ports: !override
+      - "127.0.0.1:16379:6379"
+
+  api:
+    volumes:
+      - "./api/services/configuration/options/azure.py:/app/api/services/configuration/options/azure.py:ro"
+      - "./api/services/configuration/options/dashscope.py:/app/api/services/configuration/options/dashscope.py:ro"
+      - "./api/services/configuration/options/ministream.py:/app/api/services/configuration/options/ministream.py:ro"
+      - "./api/services/configuration/options/__init__.py:/app/api/services/configuration/options/__init__.py:ro"
+      - "./api/services/configuration/registry.py:/app/api/services/configuration/registry.py:ro"
+      - "./api/services/configuration/check_validity.py:/app/api/services/configuration/check_validity.py:ro"
+      - "./api/services/configuration/ai_model_configuration.py:/app/api/services/configuration/ai_model_configuration.py:ro"
+      - "./api/db/organization_configuration_client.py:/app/api/db/organization_configuration_client.py:ro"
+      - "./api/db/workflow_run_client.py:/app/api/db/workflow_run_client.py:ro"
+      - "./api/routes/public_embed.py:/app/api/routes/public_embed.py:ro"
+      - "./api/utils/url_security.py:/app/api/utils/url_security.py:ro"
+      - "./api/services/dashscope:/app/api/services/dashscope:ro"
+      - "./api/services/ministream:/app/api/services/ministream:ro"
+      - "./api/services/gen_ai/embedding/dashscope_service.py:/app/api/services/gen_ai/embedding/dashscope_service.py:ro"
+      - "./api/services/gen_ai/embedding/factory.py:/app/api/services/gen_ai/embedding/factory.py:ro"
+      - "./api/tasks/knowledge_base_processing.py:/app/api/tasks/knowledge_base_processing.py:ro"
+      - "./api/services/pipecat/service_factory.py:/app/api/services/pipecat/service_factory.py:ro"
+      - "./api/services/pipecat/direct_faq_retrieval.py:/app/api/services/pipecat/direct_faq_retrieval.py:ro"
+      - "./api/services/pipecat/direct_final_transcript_processor.py:/app/api/services/pipecat/direct_final_transcript_processor.py:ro"
+      - "./api/services/pipecat/consultation_response_guard_processor.py:/app/api/services/pipecat/consultation_response_guard_processor.py:ro"
+      - "./api/services/pipecat/pipeline_builder.py:/app/api/services/pipecat/pipeline_builder.py:ro"
+      - "./api/services/pipecat/run_pipeline.py:/app/api/services/pipecat/run_pipeline.py:ro"
+      - "./api/services/workflow/memory.py:/app/api/services/workflow/memory.py:ro"
+      - "./api/services/workflow/initial_context.py:/app/api/services/workflow/initial_context.py:ro"
+      - "./api/services/workflow/pipecat_engine.py:/app/api/services/workflow/pipecat_engine.py:ro"
+      - "./api/services/workflow/text_chat_runner.py:/app/api/services/workflow/text_chat_runner.py:ro"
+      - "./knowledge-base/麦玲玲AI_Agent_FAQ库_粤语_RAG.txt:/app/knowledge-base/麦玲玲AI_Agent_FAQ库_粤语_RAG.txt:ro"
+
+  ui:
+    image: yishui/dograh-ui:local
+    environment:
+      YISHUI_VOICE_DEMO_TOKEN: "${YISHUI_VOICE_DEMO_TOKEN:-}"
+    volumes:
+      - "./ui/public/voice-demo/warm-audio:/app/public/voice-demo/warm-audio:ro"
+    build:
+      context: .
+      dockerfile: ui/Dockerfile

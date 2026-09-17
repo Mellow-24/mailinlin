@@ -1,0 +1,35 @@
+__pycache__
+.DS_Store
+.env
+.env.prod
+.env.test
+deploy/voice-demo/.env
+deploy/voice-demo/*.dump
+deploy/voice-demo/*.sql
+*.pem
+*.key
+
+# Conductor personal/per-machine overrides (settings.toml IS committed)
+.conductor/settings.local.toml
+
+# logs and run directory on production
+/logs/
+/run/
+infrastructure/
+prd/
+.vercel
+
+.devcontainer/install.local.sh
+venv/
+.venv/
+.playwright-mcp
+coturn/
+*.wav
+!ui/public/voice-demo/warm-audio/*.wav
+dograh_pcm_cache/
+node_modules/
+
+# Superpowers brainstorm mockups (local only)
+.superpowers/
+docs/superpowers/
+.gstack/

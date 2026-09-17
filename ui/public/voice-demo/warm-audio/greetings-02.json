@@ -1,0 +1,21 @@
+{
+  "version": "eb98372a2d10",
+  "created_at": "2026-09-02T06:20:38.387079+00:00",
+  "asset_id": "greetings-02-eb98372a2d10",
+  "category": "greetings",
+  "phrase_id": "02",
+  "source_file": "approved_yishui_opening_scripts",
+  "source_phrase": "新嘅一日開始啦，願你今日有好心情同一點小幸運。我係玲玲師傅 AI 語音角色，有咩想問，不妨慢慢講。",
+  "spoken_text": "新嘅一日開始啦，願你今日有好心情同一點小幸運。我係玲玲師傅 AI 語音角色，有咩想問，不妨慢慢講。",
+  "url": "/voice-demo/warm-audio/greetings-02.wav",
+  "duration_ms": 7560,
+  "sha256": "eb98372a2d10ca2c5a387ddf9b6f25ec8943d8b7fd5a7f5fb8e59a289d34dd9e",
+  "sample_rate": 24000,
+  "provider": "ministream",
+  "model": "ministream-tts",
+  "language": "yue",
+  "generation_mode": "preset_voice",
+  "voice_preset_key": "mailinlin",
+  "speed": 1.0,
+  "max_generate_length": 500
+}

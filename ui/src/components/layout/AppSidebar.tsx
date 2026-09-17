@@ -1,0 +1,535 @@
+"use client";
+
+import {
+  AlertTriangle,
+  ArrowUpCircle,
+  AudioLines,
+  Brain,
+  ChevronLeft,
+  ChevronRight,
+  CircleDollarSign,
+  Database,
+  ExternalLink,
+  FileText,
+  Home,
+  Key,
+  LogOut,
+  type LucideIcon,
+  Megaphone,
+  MonitorPlay,
+  Phone,
+  Settings,
+  TrendingUp,
+  UserRound,
+  Workflow,
+  Wrench,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import React from "react";
+
+import { BrandLogo } from "@/components/BrandLogo";
+import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
+import ThemeToggle from "@/components/ThemeSwitcher";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAppConfig } from "@/context/AppConfigContext";
+import { useLeadForms } from "@/context/LeadFormsContext";
+import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
+import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
+import type { LocalUser } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
+
+type SidebarNavItem = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  opensInNewTab?: boolean;
+  showsTelephonyWarning?: boolean;
+};
+
+type SidebarNavSection = {
+  label?: string;
+  items: SidebarNavItem[];
+};
+
+const TELEPHONY_WARNING_COPY = "需要处理";
+
+const NAV_SECTIONS: SidebarNavSection[] = [
+  {
+    items: [
+      {
+        title: "总览",
+        url: "/overview",
+        icon: Home,
+      },
+      {
+        title: "客户演示",
+        url: "/voice-demo",
+        icon: MonitorPlay,
+        opensInNewTab: true,
+      },
+    ],
+  },
+  {
+    label: "构建",
+    items: [
+      {
+        title: "语音智能体",
+        url: "/workflow",
+        icon: Workflow,
+      },
+      {
+        title: "批量任务",
+        url: "/campaigns",
+        icon: Megaphone,
+      },
+      {
+        title: "模型与语音",
+        url: "/model-configurations",
+        icon: Brain,
+      },
+      {
+        title: "电话接入",
+        url: "/telephony-configurations",
+        icon: Phone,
+        showsTelephonyWarning: true,
+      },
+      {
+        title: "工具",
+        url: "/tools",
+        icon: Wrench,
+      },
+      {
+        title: "知识库",
+        url: "/files",
+        icon: Database,
+      },
+      {
+        title: "录音素材",
+        url: "/recordings",
+        icon: AudioLines,
+      },
+      {
+        title: "开发者",
+        url: "/api-keys",
+        icon: Key,
+      },
+    ],
+  },
+  {
+    label: "管理",
+    items: [
+      {
+        title: "运行记录",
+        url: "/usage",
+        icon: TrendingUp,
+      },
+      {
+        title: "费用",
+        url: "/billing",
+        icon: CircleDollarSign,
+      },
+      {
+        title: "报表",
+        url: "/reports",
+        icon: FileText,
+      }
+    ],
+  },
+];
+
+export function AppSidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const { provider, logout, user } = useAuth();
+  const { config } = useAppConfig();
+  const { openHireExpert } = useLeadForms();
+  const {
+    telnyxMissingWebhookPublicKeyCount,
+    vonageMissingSignatureSecretCount,
+  } = useTelephonyConfigWarnings();
+  const hasTelephonyWarning =
+    telnyxMissingWebhookPublicKeyCount > 0 ||
+    vonageMissingSignatureSecretCount > 0;
+  const isCollapsed = !isMobile && state === "collapsed";
+
+  // Version info from app config context
+  const versionInfo = config ? { ui: config.uiVersion, api: config.apiVersion } : null;
+
+  // Check for updates only on self-hosted (OSS) deployments — cloud is managed for the user.
+  const { latest: latestRelease, isBehind, isLatest } = useLatestReleaseVersion(
+    versionInfo?.ui,
+    { enabled: config?.deploymentMode === "oss" },
+  );
+
+  const isActive = (path: string) => pathname.startsWith(path);
+
+  const handleMobileNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  const SidebarLink = ({ item }: { item: SidebarNavItem }) => {
+    const isItemActive = isActive(item.url);
+    const Icon = item.icon;
+    const showWarningDot = item.showsTelephonyWarning && hasTelephonyWarning;
+    const tooltip = {
+      children: (
+        <div className="notranslate" translate="no">
+          <p>{item.title}</p>
+          {item.opensInNewTab && (
+            <p className="text-muted-foreground">新标签页打开</p>
+          )}
+          {showWarningDot && (
+            <p className="text-amber-600 dark:text-amber-400">{TELEPHONY_WARNING_COPY}</p>
+          )}
+        </div>
+      ),
+    };
+    const warningIndicator = (
+      <AlertTriangle
+        aria-label="Action required on a telephony configuration"
+        className={cn(
+          "text-amber-500",
+          isCollapsed ? "absolute -right-0.5 -top-0.5 h-3 w-3" : "ml-auto h-3.5 w-3.5"
+        )}
+      />
+    );
+
+    return (
+      <SidebarMenuButton
+        asChild
+        tooltip={tooltip}
+        className={cn(
+          "rounded-xl transition-colors hover:bg-accent hover:text-accent-foreground",
+          isItemActive &&
+            "bg-cta/15 font-semibold text-foreground hover:bg-cta/20 hover:text-foreground"
+        )}
+      >
+        <Link
+          href={item.url}
+          target={item.opensInNewTab ? "_blank" : undefined}
+          rel={item.opensInNewTab ? "noopener noreferrer" : undefined}
+          prefetch={item.opensInNewTab ? false : undefined}
+          aria-label={item.opensInNewTab ? `${item.title}（新标签页打开）` : undefined}
+          onClick={handleMobileNavClick}
+          className={cn("relative", isCollapsed && "justify-center")}
+          translate="no"
+        >
+          {isItemActive && !isCollapsed && (
+            <span
+              className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-cta"
+              aria-hidden
+            />
+          )}
+          <Icon
+            className={cn(
+              "h-4 w-4 shrink-0",
+              isItemActive && "text-cta drop-shadow-[0_0_6px_rgba(240,170,70,0.8)]"
+            )}
+          />
+          <span
+            className={cn("notranslate min-w-0 flex-1 truncate", isCollapsed && "sr-only")}
+            translate="no"
+          >
+            {item.title}
+          </span>
+          {item.opensInNewTab && !isCollapsed && (
+            <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
+          {showWarningDot && (
+            isCollapsed ? (
+              warningIndicator
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {warningIndicator}
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{TELEPHONY_WARNING_COPY}</p>
+                </TooltipContent>
+              </Tooltip>
+            )
+          )}
+        </Link>
+      </SidebarMenuButton>
+    );
+  };
+
+  // Footer identity trigger: avatar initials only (no name), in a subtle
+  // bordered circle. Same treatment expanded and collapsed.
+  const displayIdentity =
+    user?.displayName ||
+    (user as { primaryEmail?: string } | undefined)?.primaryEmail ||
+    (user as LocalUser | undefined)?.email ||
+    "";
+  const userInitials =
+    displayIdentity
+      .split(/[\s@]/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((s: string) => s[0]?.toUpperCase())
+      .join("") || "U";
+
+  const userChipTrigger = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 shrink-0 cursor-pointer rounded-full border border-border/80 bg-muted/40 hover:bg-muted/60"
+    >
+      <span className="text-xs font-medium">{userInitials}</span>
+    </Button>
+  );
+
+  // "Hire an Expert" CTA, rendered INSIDE the shared footer pill next to the
+  // profile icon. Expanded: label pill filling the row. Collapsed: icon-only.
+  const hireExpertButton = isCollapsed ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          size="icon"
+          className="h-7 w-7 rounded-full"
+          onClick={() => openHireExpert("sidebar")}
+          aria-label="获取技术支持"
+        >
+          <UserRound className="h-3.5 w-3.5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        <p>获取技术支持</p>
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <Button
+      size="sm"
+      className="h-7 gap-1.5 rounded-full px-3 text-xs"
+      onClick={() => openHireExpert("sidebar")}
+    >
+      <UserRound className="h-3.5 w-3.5" />
+      技术支持
+    </Button>
+  );
+
+  return (
+    <Sidebar collapsible="icon" variant="floating" className="app-sidebar-dock py-4">
+      <SidebarHeader className="px-2 py-3 notranslate" translate="no">
+        <div className="flex items-center justify-between">
+          <div className={cn("flex items-center gap-2", isCollapsed && "hidden")}>
+            <Link
+              href="/"
+              className="notranslate flex items-center gap-2 px-1"
+              translate="no"
+            >
+              <BrandLogo mark className="h-6" />
+              {versionInfo && (
+                <span
+                  className="notranslate text-xs font-normal text-muted-foreground"
+                  translate="no"
+                >
+                  v{versionInfo.ui}
+                </span>
+              )}
+            </Link>
+            {isBehind && latestRelease && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href="https://docs.dograh.com/deployment/update"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 transition-opacity hover:opacity-80 dark:bg-amber-950 dark:text-amber-200"
+                  >
+                    <ArrowUpCircle className="h-3 w-3" />
+                    更新
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Latest: {latestRelease} - click to see the update guide</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {isLatest && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center rounded-md border bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+                    最新
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>You&apos;re running the latest release</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+
+          <SidebarTrigger className={cn("hover:bg-accent", isCollapsed && "mx-auto")}>
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </SidebarTrigger>
+        </div>
+
+        {provider === "stack" && (
+          <div className={cn("mt-3 notranslate", isCollapsed && "hidden")} translate="no">
+            <SidebarTeamSwitcher />
+          </div>
+        )}
+      </SidebarHeader>
+
+      <SidebarContent className={cn("notranslate", isCollapsed && "px-0")} translate="no">
+        {NAV_SECTIONS.map((section, index) => (
+          <SidebarGroup
+            key={section.label ?? "overview"}
+            className={index === 0 ? "mt-2" : "mt-6"}
+          >
+            {section.label && (
+              <SidebarGroupLabel
+                className={cn(
+                  "notranslate text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+                  isCollapsed && "hidden"
+                )}
+                translate="no"
+              >
+                {section.label}
+              </SidebarGroupLabel>
+            )}
+            <SidebarMenu>
+              {section.items.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarLink item={item} />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+
+      <SidebarFooter
+        className={cn("p-3 notranslate", isCollapsed && "p-2")}
+        translate="no"
+      >
+        <div className="space-y-2">
+          {provider !== "stack" && (
+            <div
+              className={cn(
+                "flex items-center justify-between gap-1 rounded-full border border-border/60 bg-muted/30 p-1",
+                isCollapsed && "flex-col"
+              )}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {userChipTrigger}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      {(user as LocalUser | undefined)?.email && (
+                        <p className="text-xs text-muted-foreground">{(user as LocalUser).email}</p>
+                      )}
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    平台设置
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    退出登录
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {hireExpertButton}
+            </div>
+          )}
+
+          {provider === "stack" && (
+            <div
+              className={cn(
+                "flex items-center justify-between gap-1 rounded-full border border-border/60 bg-muted/30 p-1",
+                isCollapsed && "flex-col"
+              )}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {userChipTrigger}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      {user?.displayName && (
+                        <p className="text-sm font-medium">{user.displayName}</p>
+                      )}
+                      {(user as { primaryEmail?: string })?.primaryEmail && (
+                        <p className="text-xs text-muted-foreground">{(user as { primaryEmail?: string }).primaryEmail}</p>
+                      )}
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push("/handler/account-settings")} className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    账号设置
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    平台设置
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    退出登录
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {hireExpertButton}
+            </div>
+          )}
+
+          <div className="mt-1 flex justify-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="notranslate" translate="no">
+                  <ThemeToggle
+                    showLabel={false}
+                    className="rounded-full hover:bg-accent hover:text-accent-foreground"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side={isCollapsed ? "right" : "top"}>
+                <p>切换主题</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}

@@ -1,0 +1,21 @@
+{
+  "version": "34cee1d1869b",
+  "created_at": "2026-09-02T06:20:47.321235+00:00",
+  "asset_id": "greetings-06-34cee1d1869b",
+  "category": "greetings",
+  "phrase_id": "06",
+  "source_file": "approved_yishui_opening_scripts",
+  "source_phrase": "今日天空好似特別靚，正好停一停，聽下自己心入面想問咩。我係玲玲師傅 AI 語音角色，今日想同你傾咩呢？",
+  "spoken_text": "今日天空好似特別靚，正好停一停，聽下自己心入面想問咩。我係玲玲師傅 AI 語音角色，今日想同你傾咩呢？",
+  "url": "/voice-demo/warm-audio/greetings-06.wav",
+  "duration_ms": 8040,
+  "sha256": "34cee1d1869bc3c110644d720f65ee76ccd6d297fe3d27d2f1317888d78f5f8f",
+  "sample_rate": 24000,
+  "provider": "ministream",
+  "model": "ministream-tts",
+  "language": "yue",
+  "generation_mode": "preset_voice",
+  "voice_preset_key": "mailinlin",
+  "speed": 1.0,
+  "max_generate_length": 500
+}
