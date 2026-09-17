@@ -5,20 +5,24 @@ WORKDIR /app
 
 # Install Python and build dependencies for native modules
 # This helps with ARM64 builds and native module compilation
-RUN apk add --no-cache python3 make g++ libc6-compat
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk add --no-cache python3 make g++ libc6-compat
 
 # Copy package files
 COPY ui/package*.json ./
 
 # Clean install with proper handling of native modules
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set registry https://registry.npmmirror.com && \
+    npm ci
 
 # Stage 2: Builder
 FROM docker.m.daocloud.io/library/node:22-alpine AS builder
 WORKDIR /app
 
 # Install libc6-compat for native modules in builder stage too
-RUN apk add --no-cache libc6-compat
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk add --no-cache libc6-compat
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
