@@ -78,7 +78,7 @@ services:
     networks: [internal]
 
   api:
-    image: ${DOGRAH_API_IMAGE:-dograhai/dograh-api:latest}
+    image: ${DOGRAH_API_IMAGE:-ghcr.io/dograh-hq/dograh-api:latest}
     restart: unless-stopped
     environment:
       ENVIRONMENT: production

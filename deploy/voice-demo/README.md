@@ -19,7 +19,9 @@
 
 1. 在服务器安装 Docker Engine、Docker Compose v2 和 Git。
 2. 克隆仓库到 `/opt/mailinlin`。
-3. 运行 `./deploy/voice-demo/generate-env.sh <服务器公网IP>`。
+3. 检查已纳入版本管理的 `deploy/voice-demo/server.env` 公网参数；换服务器时
+   更新该文件。运行 `./deploy/voice-demo/generate-env.sh <服务器公网IP>` 生成
+   私密 `.env`，或迁移现有演示的 `.env`。
 4. 恢复现有演示数据库，并把当前 `YISHUI_VOICE_DEMO_TOKEN` 与
    `OSS_JWT_SECRET` 安全写入 `deploy/voice-demo/.env`。
 5. 运行 `./deploy/voice-demo/deploy.sh`。

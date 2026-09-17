@@ -32,7 +32,7 @@ umask 077
   printf 'TURN_SECRET=%s\n' "$(random_secret)"
   printf 'OSS_JWT_SECRET=%s\n' "$(random_secret)"
   printf 'YISHUI_VOICE_DEMO_TOKEN=replace-after-database-restore\n'
-  printf 'DOGRAH_API_IMAGE=dograhai/dograh-api:latest\n'
+  printf 'DOGRAH_API_IMAGE=ghcr.io/dograh-hq/dograh-api:latest\n'
   printf 'LOG_LEVEL=INFO\n'
   printf 'FORCE_TURN_RELAY=false\n'
 } > "$env_file"
