@@ -1,5 +1,6 @@
 {
     email {$ACME_EMAIL}
+    default_sni {$VOICE_DEMO_HOST}
     servers {
         protocols h1 h2 h3
         timeouts {
