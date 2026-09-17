@@ -34,7 +34,8 @@ umask 077
   printf 'YISHUI_VOICE_DEMO_TOKEN=replace-after-database-restore\n'
   printf 'DOGRAH_API_IMAGE=ghcr.io/dograh-hq/dograh-api:1.45.0\n'
   printf 'LOG_LEVEL=INFO\n'
-  printf 'FORCE_TURN_RELAY=false\n'
+  printf 'TURN_TLS_PORT=0\n'
+  printf 'FORCE_TURN_RELAY=true\n'
 } > "$env_file"
 
 echo "Created $env_file with mode 600"

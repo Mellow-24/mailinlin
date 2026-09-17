@@ -114,6 +114,10 @@ services:
       FORWARDED_ALLOW_IPS: "*"
       ENABLE_COTURN: "true"
       TURN_HOST: "${SERVER_IP}"
+      TURN_PORT: "${TURN_PORT:-3478}"
+      # This deployment does not expose a TLS listener on 5349. Advertising it
+      # makes browsers wait on a TURN endpoint that can never answer.
+      TURN_TLS_PORT: "${TURN_TLS_PORT:-0}"
       TURN_SECRET: "${TURN_SECRET}"
       FORCE_TURN_RELAY: "${FORCE_TURN_RELAY:-false}"
       SERVER_IP: "${SERVER_IP}"

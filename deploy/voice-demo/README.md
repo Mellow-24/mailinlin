@@ -40,6 +40,9 @@ HTTPS 入口需要 TCP `80`、`443`。WebRTC 语音还需要：
 - TCP + UDP `3478`
 - UDP `49152-49200`
 
+该云端演示强制使用 TURN relay，上述端口缺少任何一条都会导致
+WebRTC 音频通道无法建立。未部署 `5349/TLS`，API 不会向浏览器下发该地址。
+
 PostgreSQL、Redis、MinIO、API 和 UI 都没有公网端口。
 
 ## 更新
