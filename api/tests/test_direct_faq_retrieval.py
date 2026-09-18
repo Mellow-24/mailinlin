@@ -10,9 +10,18 @@ import pytest
 from api.services.pipecat import direct_faq_retrieval as retrieval
 
 
-def test_enrich_query_maps_short_birth_year_to_zodiac() -> None:
-    assert "生肖豬" in retrieval.enrich_direct_faq_query("我係95年出世")
-    assert "生肖龍" in retrieval.enrich_direct_faq_query("2012年出生")
+def test_enrich_query_never_guesses_zodiac_from_year_alone() -> None:
+    assert retrieval.enrich_direct_faq_query("我係95年出世") == "我係95年出世"
+    assert retrieval.enrich_direct_faq_query("2012年出生") == "2012年出生"
+
+
+def test_enrich_query_uses_lunar_new_year_boundary_for_complete_date() -> None:
+    assert "生肖馬" in retrieval.enrich_direct_faq_query(
+        "我係2003年1月31日出世"
+    )
+    assert "生肖羊" in retrieval.enrich_direct_faq_query(
+        "我係2003年2月1日出世"
+    )
 
 
 def test_enrich_query_leaves_non_year_answer_unchanged() -> None:

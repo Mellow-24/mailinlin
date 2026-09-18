@@ -81,27 +81,22 @@ _DATE_SELECTION_TOPIC_RE = re.compile(
 )
 _NAME_TOPIC_RE = re.compile(r"(?:改名|起名|姓名|名學|名学)")
 _NUMBER_TOPIC_RE = re.compile(r"(?:號碼|号码|車牌|车牌|電話號|电话号码|手機號|手机号)")
-_ZODIAC_VALUE_RE = re.compile(
-    r"(?:生肖|屬|属)\s*(?:鼠|牛|虎|兔|龍|龙|蛇|馬|马|羊|猴|雞|鸡|狗|豬|猪)"
-)
-_BIRTH_YEAR_RE = re.compile(
-    r"(?:(?<!\d)(?:19|20)\d{2}\s*年|(?<!\d)\d{2}\s*年(?:出世|出生)?)"
+_BIRTH_NUMBER = (
+    r"(?:\d{1,4}|[零〇一二兩两三四五六七八九十]{1,4})"
 )
 _BIRTH_DATE_RE = re.compile(
-    r"(?:(?:19|20)?\d{2}\s*[年/.-]\s*\d{1,2}\s*[月/.-]\s*\d{1,2}\s*日?"
+    rf"(?:{_BIRTH_NUMBER}\s*[年/.-]\s*{_BIRTH_NUMBER}\s*[月/.-]\s*"
+    rf"{_BIRTH_NUMBER}\s*(?:日|號|号)?"
     r"|出生年月日|出生日|生日係|生日是)"
 )
 _BIRTH_HOUR_RE = re.compile(
     r"(?:(?:子|丑|寅|卯|辰|巳|午|未|申|酉|戌|亥)時|"
-    r"(?:凌晨|朝早|早上|中午|下晝|下午|夜晚|晚上)?\s*\d{1,2}\s*(?:點|点|時|时|鐘|钟)|時辰|时辰)"
+    rf"(?:凌晨|朝早|早上|中午|下晝|下午|夜晚|晚上)?\s*{_BIRTH_NUMBER}"
+    r"\s*(?:點|点|時|时|鐘|钟)|時辰|时辰)"
 )
 _DIRECTION_RE = re.compile(
     r"(?:坐\s*[東东南西北]|向\s*[東东南西北]|"
     r"(?:正|東|东|西|南|北|東南|东南|西南|東北|东北|西北)\s*(?:方|向))"
-)
-_SPATIAL_QUESTION_RE = re.compile(
-    r"(?:空間|空间|邊個位置|边个位置|哪個位置|哪个位置|"
-    r"房間|房间|大門|大门|床頭|床头|朝向|方位)"
 )
 _FAQ_ANSWER_RE = re.compile(r"粤语参考回答：\s*([^\n]+)")
 _GRATITUDE_RE = re.compile(
@@ -192,7 +187,11 @@ def _has_closing_intent(user_text: str) -> bool:
 
 
 def _consultation_topic(consultation_text: str) -> str:
-    if _FENG_SHUI_TOPIC_RE.search(consultation_text):
+    has_feng_shui = bool(_FENG_SHUI_TOPIC_RE.search(consultation_text))
+    has_bazi = bool(_BAZI_TOPIC_RE.search(consultation_text))
+    if has_feng_shui and has_bazi:
+        return "feng_shui_with_bazi"
+    if has_feng_shui:
         return "feng_shui"
     if _DATE_SELECTION_TOPIC_RE.search(consultation_text):
         return "date_selection"
@@ -216,6 +215,13 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
             return "你間屋大門大概向邊個方位？"
         return "你今次最想改善家宅邊一方面？"
 
+    if topic == "feng_shui_with_bazi":
+        if not _DIRECTION_RE.search(text):
+            return "你間屋大門大概向邊個方位？"
+        if not _BIRTH_DATE_RE.search(text) or not _BIRTH_HOUR_RE.search(text):
+            return "最後請講一組完整出生資料：公曆日期、當地時間？"
+        return "你今次最想改善家宅邊一方面？"
+
     if topic == "date_selection":
         if turn <= 1:
             return "你今次想為咩事情擇日？"
@@ -223,9 +229,9 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
 
     if topic == "bazi":
         if not _BIRTH_DATE_RE.search(text):
-            return "你嘅出生年月日係點？"
+            return "你嘅完整公曆出生日期係點？"
         if not _BIRTH_HOUR_RE.search(text):
-            return "你大概喺咩時辰出世？"
+            return "你當地出生時間大概係幾點？"
         return "你今次最想集中睇邊一方面？"
 
     if topic == "name":
@@ -234,10 +240,8 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
     if topic == "number":
         return "你想睇邊一組號碼？"
 
-    if not _ZODIAC_VALUE_RE.search(text):
-        return "你係咩生肖？"
-    if not _BIRTH_YEAR_RE.search(text):
-        return "你嘅出生年份係邊年？"
+    if not _BIRTH_DATE_RE.search(text):
+        return "你嘅完整公曆出生日期係點？"
     return "你今次最想集中睇邊一方面？"
 
 
@@ -291,14 +295,6 @@ def build_conversation_fallback_reply(user_text: str) -> str:
     if _GREETING_RE.search(cleaned):
         return "你好呀，好高興同你傾偈。今日有咩想了解？"
     return "明白，我會按你而家想了解嘅內容直接答你，唔會夾硬解讀成風水命理。"
-
-
-def _question_is_off_topic(question: str, consultation_text: str) -> bool:
-    return bool(
-        question
-        and _SPATIAL_QUESTION_RE.search(question)
-        and _consultation_topic(consultation_text) != "feng_shui"
-    )
 
 
 def sanitize_intake_reply(raw_text: str, latest_user_text: str = "") -> str:
@@ -498,12 +494,11 @@ class ConsultationResponseGuardProcessor(FrameProcessor):
                 and self._question_emitted_turn != self._guard_turn
             ):
                 consultation_text = self._consultation_text or self._latest_user_text
-                if not question or _question_is_off_topic(
-                    question, consultation_text
-                ):
-                    question = select_intake_question(
-                        self._guard_turn, consultation_text
-                    )
+                # Keep intake deterministic. This prevents the model from
+                # re-asking a guessed zodiac or irrelevant room details.
+                question = select_intake_question(
+                    self._guard_turn, consultation_text
+                )
                 if question:
                     await self.push_frame(
                         self._generated_text_frame(question), self._text_direction

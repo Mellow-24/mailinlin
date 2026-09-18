@@ -85,7 +85,12 @@ services:
     networks: [internal]
 
   api:
-    image: ${DOGRAH_API_IMAGE:-ghcr.io/dograh-hq/dograh-api:1.45.0}
+    image: mailinlin/voice-demo-api:local
+    build:
+      context: ../..
+      dockerfile: deploy/voice-demo/Dockerfile.api-overlay
+      args:
+        DOGRAH_API_BASE: ${DOGRAH_API_IMAGE:-ghcr.io/dograh-hq/dograh-api:1.45.0}
     # The verified base image is preloaded on the ECS because direct GHCR
     # downloads are unreliable from this region. Source-code overrides below
     # continue to be deployed from GitHub.
@@ -138,6 +143,7 @@ services:
       - ../../api/utils/url_security.py:/app/api/utils/url_security.py:ro
       - ../../api/services/dashscope:/app/api/services/dashscope:ro
       - ../../api/services/ministream:/app/api/services/ministream:ro
+      - ../../api/services/metaphysics:/app/api/services/metaphysics:ro
       - ../../api/services/gen_ai/embedding/dashscope_service.py:/app/api/services/gen_ai/embedding/dashscope_service.py:ro
       - ../../api/services/gen_ai/embedding/factory.py:/app/api/services/gen_ai/embedding/factory.py:ro
       - ../../api/tasks/knowledge_base_processing.py:/app/api/tasks/knowledge_base_processing.py:ro
@@ -151,6 +157,7 @@ services:
       - ../../api/services/workflow/initial_context.py:/app/api/services/workflow/initial_context.py:ro
       - ../../api/services/workflow/pipecat_engine.py:/app/api/services/workflow/pipecat_engine.py:ro
       - ../../api/services/workflow/text_chat_runner.py:/app/api/services/workflow/text_chat_runner.py:ro
+      - ../../scripts/optimize_yishui_agent.py:/app/scripts/optimize_yishui_agent.py:ro
       - ../../knowledge-base/麦玲玲AI_Agent_FAQ库_粤语_RAG.txt:/app/knowledge-base/麦玲玲AI_Agent_FAQ库_粤语_RAG.txt:ro
     depends_on:
       postgres:

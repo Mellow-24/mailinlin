@@ -18,6 +18,10 @@ from api.services.integrations import (
     IntegrationRuntimeContext,
     create_runtime_sessions,
 )
+from api.services.metaphysics.birth_chart_context import (
+    build_birth_facts_context,
+    replace_birth_facts_context,
+)
 from api.services.observability.active_calls import (
     register_active_call as register_worker_active_call,
 )
@@ -964,7 +968,7 @@ async def _run_pipeline_impl(
                 f"{turn_limit}: {exc}"
             )
 
-    async def _prepare_direct_faq_context(_user_turn: int, user_text: str) -> None:
+    async def _prepare_direct_turn_context(_user_turn: int, user_text: str) -> None:
         # Greetings and general chat must not inherit an earlier FAQ reference
         # or accidentally match a biography entry through a name such as
         # "玲玲姐". Only a classified consultation turn performs retrieval.
@@ -989,8 +993,15 @@ async def _run_pipeline_impl(
                     DEFAULT_LOCAL_FAQ_SOURCE if direct_local_faq_enabled else None
                 ),
             )
+        birth_context = (
+            build_birth_facts_context(direct_user_processor.consultation_text)
+            if direct_user_processor.current_turn_is_consultation
+            else ""
+        )
         context.transform_messages(
-            lambda messages: replace_direct_faq_reference(messages, reference)
+            lambda messages: replace_birth_facts_context(
+                replace_direct_faq_reference(messages, reference), birth_context
+            )
         )
 
     def _current_direct_faq_reference() -> str:
@@ -1010,11 +1021,9 @@ async def _run_pipeline_impl(
             context,
             consultation_questions=direct_consultation_questions,
             before_llm_request=_configure_direct_llm_turn,
-            context_preparer=(
-                _prepare_direct_faq_context
-                if direct_faq_document_uuids or direct_local_faq_enabled
-                else None
-            ),
+            # Calculation context is local and deterministic, so run this even
+            # when FAQ retrieval is disabled. It adds no second model request.
+            context_preparer=_prepare_direct_turn_context,
         )
         if direct_voice_demo
         else None

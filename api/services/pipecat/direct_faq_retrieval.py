@@ -15,6 +15,10 @@ from typing import Any
 
 from loguru import logger
 
+from api.services.metaphysics.birth_chart_context import (
+    calculate_birth_facts,
+    extract_birth_details,
+)
 from api.services.workflow.tools.knowledge_base import retrieve_from_knowledge_base
 
 
@@ -29,37 +33,25 @@ DEFAULT_LOCAL_FAQ_SOURCE = (
 )
 _FAQ_SPLIT_RE = re.compile(r"(?=FAQ 编号：)")
 _SEARCHABLE_RE = re.compile(r"[\u4e00-\u9fffA-Za-z0-9]+")
-_BIRTH_YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2}|\d{2})\s*年")
-_ZODIAC_BY_YEAR_REMAINDER = {
-    0: "猴",
-    1: "雞",
-    2: "狗",
-    3: "豬",
-    4: "鼠",
-    5: "牛",
-    6: "虎",
-    7: "兔",
-    8: "龍",
-    9: "蛇",
-    10: "馬",
-    11: "羊",
-}
-
-
 def enrich_direct_faq_query(query: str) -> str:
-    """Add a zodiac search hint for terse spoken birth-year answers."""
+    """Add a zodiac hint only after an exact lunar-date conversion.
+
+    A Gregorian year alone is never enough: people born before Lunar New Year
+    belong to the prior lunar zodiac, and a Four-Pillars year can additionally
+    change at Li Chun. The previous year-modulo shortcut caused incorrect FAQ
+    hits around those boundaries.
+    """
 
     normalized = query.strip()
-    match = _BIRTH_YEAR_RE.search(normalized)
-    if not match:
+    details = extract_birth_details(normalized)
+    if details is None or not details.has_date:
         return normalized
-    raw_year = int(match.group(1))
-    if raw_year >= 1000:
-        year = raw_year
-    else:
-        year = (2000 if raw_year <= 26 else 1900) + raw_year
-    zodiac = _ZODIAC_BY_YEAR_REMAINDER[year % 12]
-    return f"{normalized} 生肖{zodiac} 屬{zodiac}"
+    try:
+        facts = calculate_birth_facts(details)
+    except (ImportError, ModuleNotFoundError):
+        return normalized
+    zodiac = facts.get("popular_zodiac")
+    return f"{normalized} 生肖{zodiac} 屬{zodiac}" if zodiac else normalized
 
 
 def _bounded_chunk_text(value: object) -> str:

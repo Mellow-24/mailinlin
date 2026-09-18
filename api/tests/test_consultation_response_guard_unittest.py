@@ -80,7 +80,7 @@ class TestConsultationResponseGuard(IsolatedAsyncioTestCase):
         self.assertIsNotNone(selector)
         question = selector(1, "我想睇今年事業同財運")
 
-        self.assertEqual(question, "你係咩生肖？")
+        self.assertEqual(question, "你嘅完整公曆出生日期係點？")
         self.assertNotIn("空間", question)
 
     def test_bazi_intake_collects_birth_date_then_birth_hour(self) -> None:
@@ -88,11 +88,11 @@ class TestConsultationResponseGuard(IsolatedAsyncioTestCase):
         self.assertIsNotNone(selector)
         self.assertEqual(
             selector(1, "我想睇八字"),
-            "你嘅出生年月日係點？",
+            "你嘅完整公曆出生日期係點？",
         )
         self.assertEqual(
             selector(2, "我想睇八字\n我係1990年5月12日出世"),
-            "你大概喺咩時辰出世？",
+            "你當地出生時間大概係幾點？",
         )
 
     def test_explicit_feng_shui_intake_can_ask_a_relevant_direction(self) -> None:
@@ -123,13 +123,13 @@ class TestConsultationResponseGuard(IsolatedAsyncioTestCase):
         )
 
         self.assertIn("屬馬今年變化較多", intake)
-        self.assertTrue(intake.endswith("你係咩生肖？"))
+        self.assertTrue(intake.endswith("你嘅完整公曆出生日期係點？"))
         self.assertEqual(final.count("？") + final.count("?"), 0)
 
-    def test_short_birth_year_counts_as_the_collected_year(self) -> None:
+    def test_short_birth_year_is_not_enough_to_determine_zodiac(self) -> None:
         self.assertEqual(
             guard_module.select_intake_question(2, "我屬狗\n我係95年出世"),
-            "你今次最想集中睇邊一方面？",
+            "你嘅完整公曆出生日期係點？",
         )
 
     def test_final_fallback_thanks_does_not_repeat_the_previous_faq(self) -> None:
@@ -146,6 +146,18 @@ class TestConsultationResponseGuard(IsolatedAsyncioTestCase):
 
         self.assertIn("唔使客氣", reply)
         self.assertNotIn("屬狗", reply)
+
+    def test_bazi_can_assist_feng_shui_but_house_direction_stays_primary(self) -> None:
+        self.assertEqual(
+            guard_module.select_intake_question(1, "我想用八字配屋企風水"),
+            "你間屋大門大概向邊個方位？",
+        )
+        self.assertEqual(
+            guard_module.select_intake_question(
+                2, "我想用八字配屋企風水\n大門向東南"
+            ),
+            "最後請講一組完整出生資料：公曆日期、當地時間？",
+        )
 
     def test_early_goodbye_or_thanks_never_enters_faq_fallback(self) -> None:
         reference = (

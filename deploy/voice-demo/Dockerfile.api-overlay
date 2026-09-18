@@ -1,0 +1,8 @@
+ARG DOGRAH_API_BASE=ghcr.io/dograh-hq/dograh-api:1.45.0
+FROM ${DOGRAH_API_BASE}
+
+USER root
+RUN /opt/venv/bin/pip install --no-cache-dir --no-deps \
+    --index-url https://mirrors.aliyun.com/pypi/simple \
+    lunar_python==1.4.8
+USER dograh
