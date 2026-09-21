@@ -8,7 +8,16 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 
 from loguru import logger
-from pipecat.frames.frames import LLMContextFrame, TranscriptionFrame
+from pipecat.frames.frames import (
+    BotStoppedSpeakingFrame,
+    CancelFrame,
+    EndFrame,
+    ErrorFrame,
+    InterimTranscriptionFrame,
+    LLMContextFrame,
+    StopFrame,
+    TranscriptionFrame,
+)
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
@@ -124,6 +133,9 @@ class DirectFinalTranscriptProcessor(FrameProcessor):
         self._debounce_seconds = max(0.0, debounce_seconds)
         self._pending_texts: list[str] = []
         self._commit_task: asyncio.Task[None] | None = None
+        self._commit_lock = asyncio.Lock()
+        self._client_boundary_pending = False
+        self._response_in_flight = False
         self._consultation_questions = max(0, consultation_questions)
         self._before_llm_request = before_llm_request
         self._context_preparer = context_preparer
@@ -174,7 +186,7 @@ class DirectFinalTranscriptProcessor(FrameProcessor):
         elif consultation_turn == 1:
             action = (
                 "固定暖场的‘今日想問咩呢？’是第1问，这是用户对第1问的回答。"
-                "输出最多三句、约六十至一百个中文字：前一至两句必须是具体分析和有用观察，"
+                "输出最多三句、约四十五至七十个中文字：前一至两句必须是具体分析和有用观察，"
                 "不得反问或出现问号；最后一句才问第2问。第2问只问一个事实，"
                 "不得用‘或、或者、同埋、以及’串联多项资料。下一问必须贴合知识库主题："
                 "一般运程问完整公历出生日期，八字命理问完整公历出生日期，"
@@ -183,7 +195,7 @@ class DirectFinalTranscriptProcessor(FrameProcessor):
             )
         elif consultation_turn == 2:
             action = (
-                "这是用户对第2问的回答。输出最多三句、约六十至一百个中文字："
+                "这是用户对第2问的回答。输出最多三句、约四十五至七十个中文字："
                 "前一至两句具体分析新回答并联系第1次回答，不得反问或出现问号；"
                 "最后一句才问最后的第3问。第3问只问一个事实，不得串联多项资料。"
                 "按累计主题补齐一个关键事实：一般运程补关注方面，八字补当地出生时间，"
@@ -196,13 +208,14 @@ class DirectFinalTranscriptProcessor(FrameProcessor):
                 "这是用户对第3问的回答。三问已完成，禁止继续提问或输出问号。"
                 "现在给详细综合解析：先总结三轮关键信息，再说明现实观察、传统文化角度、"
                 "两至三个安全可逆建议以及不确定性边界。使用自然香港粤语，"
-                "合计六至八个短句、约一百八十至二百四十个中文字，只用一个口语段落。"
+                "合计四至六个短句、约一百二十至一百六十个中文字，只用一个口语段落。"
                 "禁止Markdown、编号、项目符号或栏目名，必须用完整的陈述句结束。"
             )
         else:
             action = (
                 "三问咨询已经完成。直接回答用户后续追问并结合之前的综合结论，"
                 "禁止再进行资料收集式提问；信息不足时说明限制，但不要开启新一轮问答。"
+                "回复控制在八十至一百四十个中文字。"
             )
         return (
             f"{self._FLOW_MARKER}\n{action}\n"
@@ -221,104 +234,149 @@ class DirectFinalTranscriptProcessor(FrameProcessor):
         return True
 
     async def _commit_pending(self) -> None:
-        texts = self._pending_texts
-        self._pending_texts = []
-        if not texts:
-            return
-        combined = " ".join(texts)
-        self._user_turn_count += 1
-        self._last_user_text = combined
-        self._user_text_history.append(combined)
-        self._current_turn_is_consultation = is_consultation_turn(
-            combined,
-            consultation_started=self._consultation_started,
-            consultation_turn_count=self._consultation_turn_count,
-        )
-        if self._current_turn_is_consultation:
-            self._consultation_started = True
-            self._consultation_turn_count += 1
-            self._consultation_user_text_history.append(combined)
-        effective_turn = (
-            self._consultation_turn_count
-            if self._current_turn_is_consultation
-            else 1
-        )
-        if self._before_llm_request is not None:
-            await self._before_llm_request(effective_turn)
-        if self._context_preparer is not None:
-            try:
-                await self._context_preparer(effective_turn, combined)
-            except Exception:
-                logger.debug(
-                    "Direct turn context preparation failed; continuing without it"
+        async with self._commit_lock:
+            texts = self._pending_texts
+            self._pending_texts = []
+            if not texts or self._response_in_flight:
+                return
+            self._client_boundary_pending = False
+            combined = " ".join(texts)
+            self._user_turn_count += 1
+            self._last_user_text = combined
+            self._user_text_history.append(combined)
+            self._current_turn_is_consultation = is_consultation_turn(
+                combined,
+                consultation_started=self._consultation_started,
+                consultation_turn_count=self._consultation_turn_count,
+            )
+            if self._current_turn_is_consultation:
+                self._consultation_started = True
+                self._consultation_turn_count += 1
+                self._consultation_user_text_history.append(combined)
+            effective_turn = (
+                self._consultation_turn_count
+                if self._current_turn_is_consultation
+                else 1
+            )
+            if self._before_llm_request is not None:
+                await self._before_llm_request(effective_turn)
+            if self._context_preparer is not None:
+                try:
+                    await self._context_preparer(effective_turn, combined)
+                except Exception:
+                    logger.debug(
+                        "Direct turn context preparation failed; continuing without it"
+                    )
+            flow_instruction = self._flow_instruction(
+                self._consultation_turn_count,
+                is_consultation=self._current_turn_is_consultation,
+            )
+            if flow_instruction:
+                self._context.transform_messages(
+                    lambda messages: [
+                        message
+                        for message in messages
+                        if not (
+                            isinstance(message, dict)
+                            and message.get("role") == "system"
+                            and str(message.get("content", "")).startswith(
+                                self._FLOW_MARKER
+                            )
+                        )
+                    ]
                 )
-        flow_instruction = self._flow_instruction(
-            self._consultation_turn_count,
-            is_consultation=self._current_turn_is_consultation,
-        )
-        if flow_instruction:
+                self._context.add_message(
+                    {"role": "system", "content": flow_instruction}
+                )
+            # Refresh the trusted date for every turn, including ordinary chat.
+            # Replacing it avoids stale dates and growing context across midnight.
             self._context.transform_messages(
                 lambda messages: [
                     message
                     for message in messages
                     if not (
-                        isinstance(message, dict)
-                        and message.get("role") == "system"
+                        message.get("role") == "system"
                         and str(message.get("content", "")).startswith(
-                            self._FLOW_MARKER
+                            VOICE_DEMO_DATE_MARKER
                         )
                     )
                 ]
             )
             self._context.add_message(
-                {"role": "system", "content": flow_instruction}
+                {"role": "system", "content": build_voice_demo_date_instruction()}
             )
-        # Refresh the trusted date for every turn, including ordinary chat.
-        # Replacing it avoids stale dates and growing context across midnight.
-        self._context.transform_messages(
-            lambda messages: [
-                message
-                for message in messages
-                if not (
-                    message.get("role") == "system"
-                    and str(message.get("content", "")).startswith(
-                        VOICE_DEMO_DATE_MARKER
-                    )
+            self._context.add_message({"role": "user", "content": combined})
+            self._response_in_flight = True
+            try:
+                await self.push_frame(
+                    LLMContextFrame(self._context), FrameDirection.DOWNSTREAM
                 )
-            ]
-        )
-        self._context.add_message(
-            {"role": "system", "content": build_voice_demo_date_instruction()}
-        )
-        self._context.add_message({"role": "user", "content": combined})
-        await self.push_frame(
-            LLMContextFrame(self._context), FrameDirection.DOWNSTREAM
-        )
+            except Exception:
+                self._response_in_flight = False
+                raise
 
-    async def _commit_after_debounce(self) -> None:
-        await asyncio.sleep(self._debounce_seconds)
+    async def _commit_after_debounce(self, delay: float) -> None:
+        await asyncio.sleep(delay)
         self._commit_task = None
         await self._commit_pending()
 
-    def _schedule_commit(self) -> None:
+    def _schedule_commit(self, delay: float | None = None) -> None:
         if self._commit_task is not None and not self._commit_task.done():
             self._commit_task.cancel()
         self._commit_task = asyncio.create_task(
-            self._commit_after_debounce(),
+            self._commit_after_debounce(
+                self._debounce_seconds if delay is None else max(0.0, delay)
+            ),
             name=f"{self.name}-commit-final-transcript",
         )
 
+    async def commit_client_turn(self) -> None:
+        """Commit all final ASR segments after the browser finishes mic drain."""
+
+        if self._response_in_flight:
+            return
+        self._client_boundary_pending = True
+        # Leave a small grace period for the final signaling and ASR WebSockets
+        # to cross. The browser already kept audio alive for the configured
+        # trailing-silence drain before sending this boundary.
+        self._schedule_commit(delay=0.2)
+
     async def process_frame(self, frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
+
+        if isinstance(frame, BotStoppedSpeakingFrame):
+            self._response_in_flight = False
+        elif isinstance(frame, (CancelFrame, EndFrame, StopFrame, ErrorFrame)):
+            self._response_in_flight = False
+
+        if (
+            direction is FrameDirection.DOWNSTREAM
+            and isinstance(frame, InterimTranscriptionFrame)
+            and self._pending_texts
+            and not self._response_in_flight
+        ):
+            # Keep the fallback timer behind ongoing speech. Client turn-end is
+            # still the primary boundary for the headless demo.
+            self._schedule_commit()
+            await self.push_frame(frame, direction)
+            return
 
         if direction is FrameDirection.DOWNSTREAM and isinstance(
             frame, TranscriptionFrame
         ):
             text = (frame.text or "").strip()
             key = (text, frame.user_id or "", frame.timestamp or "")
+            if text and self._response_in_flight:
+                logger.debug(
+                    "Ignoring trailing finalized transcript while the direct "
+                    "voice response is in flight"
+                )
+                return
             if text and self._remember(key):
                 self._pending_texts.append(text)
-                self._schedule_commit()
+                self._schedule_commit(
+                    delay=0.2 if self._client_boundary_pending else None
+                )
                 return
 
         await self.push_frame(frame, direction)
@@ -331,6 +389,9 @@ class DirectFinalTranscriptProcessor(FrameProcessor):
             except asyncio.CancelledError:
                 pass
         self._commit_task = None
+        self._pending_texts = []
+        self._client_boundary_pending = False
+        self._response_in_flight = False
         await super().cleanup()
 
 

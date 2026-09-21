@@ -56,6 +56,9 @@ from api.services.pipecat.ws_sender_registry import (
     register_ws_sender,
     unregister_ws_sender,
 )
+from api.services.pipecat.voice_turn_boundary_registry import (
+    notify_voice_turn_boundary,
+)
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow.embed_session_service import validate_embed_origin
 
@@ -511,6 +514,13 @@ class SignalingManager:
             await self._handle_ice_candidate(payload, connection_key)
         elif msg_type == "renegotiate":
             await self._handle_renegotiation(ws, payload, connection_key)
+        elif msg_type == "voice-turn-ended":
+            handled = await notify_voice_turn_boundary(workflow_run_id)
+            if not handled:
+                logger.debug(
+                    f"Voice turn boundary arrived before direct processor was "
+                    f"ready for run {workflow_run_id}"
+                )
 
     async def _handle_offer(
         self,

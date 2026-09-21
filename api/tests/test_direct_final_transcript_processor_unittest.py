@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, patch
 
-from pipecat.frames.frames import LLMContextFrame, TranscriptionFrame
+from pipecat.frames.frames import (
+    BotStoppedSpeakingFrame,
+    LLMContextFrame,
+    TranscriptionFrame,
+)
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection
 
@@ -274,6 +278,99 @@ class TestDirectFinalTranscriptProcessor(IsolatedAsyncioTestCase):
             ],
         )
         await processor.cleanup()
+
+    async def test_client_turn_boundary_commits_split_finals_once(self) -> None:
+        context = LLMContext()
+        processor = DirectFinalTranscriptProcessor(
+            context,
+            debounce_seconds=5.0,
+        )
+        processor.push_frame = AsyncMock()
+
+        try:
+            for index, text in enumerate(("我想睇今年運程，", "主要想問事業。")):
+                await processor.process_frame(
+                    TranscriptionFrame(
+                        text=text,
+                        user_id="visitor",
+                        timestamp=f"2026-09-21T00:00:0{index}Z",
+                        finalized=True,
+                    ),
+                    FrameDirection.DOWNSTREAM,
+                )
+
+            await processor.commit_client_turn()
+            await asyncio.sleep(0.25)
+
+            llm_frames = [
+                call.args[0]
+                for call in processor.push_frame.await_args_list
+                if isinstance(call.args[0], LLMContextFrame)
+            ]
+            self.assertEqual(len(llm_frames), 1)
+            self.assertEqual(
+                context.messages[-1],
+                {"role": "user", "content": "我想睇今年運程， 主要想問事業。"},
+            )
+        finally:
+            await processor.cleanup()
+
+    async def test_in_flight_response_suppresses_late_duplicate_turn(self) -> None:
+        context = LLMContext()
+        processor = DirectFinalTranscriptProcessor(
+            context,
+            debounce_seconds=5.0,
+        )
+        processor.push_frame = AsyncMock()
+
+        try:
+            first = TranscriptionFrame(
+                text="我係九五年出世。",
+                user_id="visitor",
+                timestamp="2026-09-21T00:00:01Z",
+                finalized=True,
+            )
+            await processor.process_frame(first, FrameDirection.DOWNSTREAM)
+            await processor.commit_client_turn()
+            await asyncio.sleep(0.25)
+
+            late = TranscriptionFrame(
+                text="我係九五年出世。",
+                user_id="visitor",
+                timestamp="2026-09-21T00:00:02Z",
+                finalized=True,
+            )
+            await processor.process_frame(late, FrameDirection.DOWNSTREAM)
+            await asyncio.sleep(0.05)
+            self.assertEqual(
+                sum(
+                    isinstance(call.args[0], LLMContextFrame)
+                    for call in processor.push_frame.await_args_list
+                ),
+                1,
+            )
+
+            await processor.process_frame(
+                BotStoppedSpeakingFrame(), FrameDirection.UPSTREAM
+            )
+            next_turn = TranscriptionFrame(
+                text="再講下財運。",
+                user_id="visitor",
+                timestamp="2026-09-21T00:00:03Z",
+                finalized=True,
+            )
+            await processor.process_frame(next_turn, FrameDirection.DOWNSTREAM)
+            await processor.commit_client_turn()
+            await asyncio.sleep(0.25)
+            self.assertEqual(
+                sum(
+                    isinstance(call.args[0], LLMContextFrame)
+                    for call in processor.push_frame.await_args_list
+                ),
+                2,
+            )
+        finally:
+            await processor.cleanup()
 
     async def test_three_question_flow_advances_then_stops_asking(self) -> None:
         context = LLMContext(

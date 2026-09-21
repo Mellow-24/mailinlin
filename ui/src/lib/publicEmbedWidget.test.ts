@@ -530,6 +530,13 @@ describe('public embed widget headless voice lifecycle', () => {
         expect(widget?.isRecording()).toBe(false);
         expect(microphoneTrack.enabled).toBe(false);
         expect(recordingChanges).toEqual([true, false]);
+        expect(
+            socket.send.mock.calls
+                .map(([message]) => JSON.parse(String(message)))
+                .filter(message => message.type === 'voice-turn-ended'),
+        ).toEqual([
+            { type: 'voice-turn-ended', payload: { pc_id: expect.any(String) } },
+        ]);
 
         await socket.emit('rtf-bot-text', { text: '床头宜有靠。' });
         await socket.emit('rtf-user-transcription', { text: '卧室应该怎样布局？', final: true });

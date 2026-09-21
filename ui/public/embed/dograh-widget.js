@@ -44,6 +44,7 @@
       transcriberReady: true,
       isDraining: false,
       drainTimer: null,
+      turnEndPending: false,
       openingAttemptId: 0,
       openingAttemptActive: false,
       openingTranscript: null,
@@ -836,6 +837,8 @@
   }
 
   function finishMicrophoneDrain() {
+    const notifyTurnEnd = state.voice.turnEndPending;
+    state.voice.turnEndPending = false;
     if (state.voice.drainTimer !== null) {
       clearTimeout(state.voice.drainTimer);
       state.voice.drainTimer = null;
@@ -844,6 +847,16 @@
     microphoneTracks().forEach(track => {
       track.enabled = false;
     });
+    if (
+      notifyTurnEnd &&
+      state.ws &&
+      state.ws.readyState === WebSocket.OPEN
+    ) {
+      state.ws.send(JSON.stringify({
+        type: 'voice-turn-ended',
+        payload: { pc_id: state.pcId }
+      }));
+    }
   }
 
   function completeClientOpening(attemptId) {
@@ -862,6 +875,7 @@
 
   function resetVoiceState() {
     stopLocalSpeechRecognition(true);
+    state.voice.turnEndPending = false;
     finishMicrophoneDrain();
     setRecordingState(false);
     setAgentReady(false);
@@ -1079,6 +1093,9 @@
     const wasRecording = state.voice.isRecording;
     setRecordingState(false);
     stopLocalSpeechRecognition();
+    if (wasRecording) {
+      state.voice.turnEndPending = true;
+    }
     const drainMs = state.config.recordingDrainMs || 0;
     if (
       wasRecording &&

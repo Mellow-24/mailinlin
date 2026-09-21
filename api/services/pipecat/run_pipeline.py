@@ -84,6 +84,10 @@ from api.services.pipecat.transcript_log_coordinator import TranscriptLogCoordin
 from api.services.pipecat.transport_setup import create_webrtc_transport
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
+from api.services.pipecat.voice_turn_boundary_registry import (
+    register_voice_turn_boundary_handler,
+    unregister_voice_turn_boundary_handler,
+)
 from api.services.telephony import registry as telephony_registry
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.initial_context import (
@@ -954,11 +958,11 @@ async def _run_pipeline_impl(
     async def _configure_direct_llm_turn(user_turn: int) -> None:
         configured_limit = int(getattr(user_config.llm, "max_tokens", 320) or 320)
         turn_limit = (
-            min(configured_limit, 120)
+            min(configured_limit, 100)
             if user_turn <= 2
-            else configured_limit
+            else min(configured_limit, 220)
             if user_turn == 3
-            else min(configured_limit, 200)
+            else min(configured_limit, 160)
         )
         try:
             await llm._update_settings(LLMSettings(max_tokens=turn_limit))
@@ -1019,6 +1023,10 @@ async def _run_pipeline_impl(
     direct_user_processor = (
         DirectFinalTranscriptProcessor(
             context,
+            # The headless widget sends an explicit boundary after its 1.2s
+            # microphone drain. This longer timer is only a compatibility
+            # fallback for older cached widget code or a lost signaling event.
+            debounce_seconds=2.5,
             consultation_questions=direct_consultation_questions,
             before_llm_request=_configure_direct_llm_turn,
             # Calculation context is local and deterministic, so run this even
@@ -1435,6 +1443,11 @@ async def _run_pipeline_impl(
             _prewarm_llm(), name=f"llm-prewarm-{workflow_run_id}"
         )
 
+    if direct_user_processor is not None:
+        register_voice_turn_boundary_handler(
+            workflow_run_id, direct_user_processor.commit_client_turn
+        )
+
     try:
         # Run the pipeline
         await run_pipeline_worker(task)
@@ -1442,6 +1455,7 @@ async def _run_pipeline_impl(
     except asyncio.CancelledError:
         logger.warning("Received CancelledError in _run_pipeline")
     finally:
+        unregister_voice_turn_boundary_handler(workflow_run_id)
         if tts_prewarm_task is not None:
             if not tts_prewarm_task.done():
                 tts_prewarm_task.cancel()
