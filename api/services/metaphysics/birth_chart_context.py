@@ -50,6 +50,11 @@ _EXPLICIT_BIRTH_RE = re.compile(
     r"(?:出生|出世|生於|生于|生日|生辰|八字|四柱|命盤|命盘|"
     r"生肖|屬|属)"
 )
+_EXPLICIT_ZODIAC_RE = re.compile(
+    r"(?:我|本人|自己)(?:嘅|既|的)?\s*"
+    r"(?:(?:生肖)\s*(?:係|是|屬|属)?|(?:係|是)?\s*(?:屬|属))\s*"
+    r"(?P<zodiac>鼠|牛|虎|兔|龍|龙|蛇|馬|马|羊|猴|雞|鸡|狗|豬|猪)"
+)
 _EXPLICIT_BIRTH_YEAR_RE = re.compile(
     rf"(?:出生|出世|生於|生于|生日).{{0,10}}{_NUMBER_TOKEN}\s*年"
     rf"|{_NUMBER_TOKEN}\s*年.{{0,6}}(?:出生|出世|生人)"
@@ -138,8 +143,25 @@ def _parse_clock_time(text: str) -> tuple[int | None, int]:
     return hour, minute
 
 
+def _hong_kong_now(now: datetime | None = None) -> datetime:
+    hong_kong = ZoneInfo("Asia/Hong_Kong")
+    if now is not None and now.utcoffset() is None:
+        raise ValueError("Metaphysics clock must be timezone-aware")
+    return (now or datetime.now(hong_kong)).astimezone(hong_kong)
+
+
 def _hong_kong_year() -> int:
-    return datetime.now(ZoneInfo("Asia/Hong_Kong")).year
+    return _hong_kong_now().year
+
+
+def extract_stated_zodiac(text: str) -> str | None:
+    """Return the latest first-person zodiac claim, never a question about a year."""
+
+    normalized = unicodedata.normalize("NFKC", text)
+    matches = list(_EXPLICIT_ZODIAC_RE.finditer(normalized))
+    if not matches:
+        return None
+    return _traditional(matches[-1].group("zodiac"))
 
 
 def extract_birth_details(
@@ -257,16 +279,93 @@ def calculate_birth_facts(details: BirthDetails) -> dict[str, str]:
     return result
 
 
+def calculate_current_year_facts(
+    now: datetime | None = None,
+) -> dict[str, str]:
+    """Calculate the current Hong Kong lunar-year and Li-Chun-year facts."""
+
+    current = _hong_kong_now(now)
+    Solar = _load_solar_class()
+    lunar = Solar.fromYmdHms(
+        current.year,
+        current.month,
+        current.day,
+        current.hour,
+        current.minute,
+        current.second,
+    ).getLunar()
+    eight_char = lunar.getEightChar()
+    return {
+        "solar_date": current.date().isoformat(),
+        "lunar_year_ganzhi": _traditional(lunar.getYearInGanZhi()),
+        "popular_zodiac": _traditional(lunar.getYearShengXiao()),
+        "flow_year_ganzhi": _traditional(eight_char.getYear()),
+        "flow_year_zodiac": _traditional(lunar.getYearShengXiaoExact()),
+    }
+
+
+def _current_year_context_lines(facts: dict[str, str]) -> list[str]:
+    lines = [
+        f"香港當前公曆日期：{facts['solar_date']}。",
+        (
+            "當前日常農曆生肖年（正月初一換年）："
+            f"{facts['lunar_year_ganzhi']}年，肖{facts['popular_zodiac']}。"
+        ),
+        (
+            "當前八字流年／太歲口徑（精確立春換年）："
+            f"{facts['flow_year_ganzhi']}年，年支屬{facts['flow_year_zodiac']}。"
+        ),
+        (
+            "本命年只可喺用戶生肖（或相應八字年支）同當前年支相同時成立。"
+            "六合（例如馬羊）、三合、相沖、相刑、相破或相害都唔係本命年，"
+            "禁止將呢啲關係寫成本命年。"
+        ),
+    ]
+    if facts["popular_zodiac"] != facts["flow_year_zodiac"]:
+        lines.append(
+            "目前正處於春節同立春兩個換年點之間，兩個口徑不同；"
+            "回答必須指明所用口徑，唔可以混作同一個生肖結論。"
+        )
+    return lines
+
+
+def _benming_context_line(
+    user_zodiac: str,
+    current_facts: dict[str, str],
+    *,
+    label: str = "用戶生肖",
+) -> str:
+    popular = current_facts["popular_zodiac"]
+    flow = current_facts["flow_year_zodiac"]
+    if user_zodiac == popular == flow:
+        conclusion = "兩個當前年份口徑都相同，所以係本命年"
+    elif user_zodiac != popular and user_zodiac != flow:
+        conclusion = "同兩個當前年份口徑都唔同，所以唔係本命年"
+    else:
+        conclusion = (
+            "只同其中一個換年口徑相同，必須分開交代，唔可籠統斷作本命年"
+        )
+    return (
+        f"本命年確定性比對：{label}為{user_zodiac}；"
+        f"當前日常生肖年為{popular}、八字流年年支為{flow}；{conclusion}。"
+    )
+
+
 def build_birth_facts_context(
-    text: str, *, current_year: int | None = None
+    text: str,
+    *,
+    current_year: int | None = None,
+    now: datetime | None = None,
 ) -> str:
     """Format deterministic facts as one replaceable, internal system message."""
 
+    current = _hong_kong_now(now)
+    current_year = current_year or current.year
     details = extract_birth_details(text, current_year=current_year)
-    if details is None:
-        return ""
+    stated_zodiac = extract_stated_zodiac(text)
     try:
-        facts = calculate_birth_facts(details)
+        current_facts = calculate_current_year_facts(current)
+        facts = calculate_birth_facts(details) if details is not None else None
     except (ImportError, ModuleNotFoundError):
         return (
             f"{BIRTH_FACTS_MARKER}\n"
@@ -279,30 +378,51 @@ def build_birth_facts_context(
         "以下係曆法規則引擎輸出嘅計算事實，優先級高過 FAQ 同模型猜測。"
         "只可用來解釋，絕對唔可改寫、反推或聲稱用戶自相矛盾。\n"
     )
+    lines = [header.rstrip("\n"), *_current_year_context_lines(current_facts)]
+    if details is None:
+        if stated_zodiac:
+            lines.extend(
+                (
+                    f"用戶本輪自述生肖：屬{stated_zodiac}。",
+                    _benming_context_line(stated_zodiac, current_facts),
+                )
+            )
+        return "\n".join(lines)
+
+    assert facts is not None
     status = facts.get("status")
     if status == "year_only":
-        return (
-            header
-            + f"目前只知公曆出生年份：{facts['year']}年。"
+        lines.append(
+            f"目前只知公曆出生年份：{facts['year']}年。"
             "單憑年份無法判定一月至二月出生者嘅農曆生肖，"
             "禁止用年份除以十二直接斷定；如仍在收集資料，應問完整公曆出生日期。"
         )
+        if stated_zodiac:
+            lines.extend(
+                (
+                    f"用戶另外自述生肖：屬{stated_zodiac}；呢項係用戶提供，唔係年份推算。",
+                    _benming_context_line(stated_zodiac, current_facts),
+                )
+            )
+        return "\n".join(lines)
     if status == "invalid_date":
-        return (
-            header
-            + "用戶說出嘅公曆日期無效或無法組成真實日期。"
+        lines.append(
+            "用戶說出嘅公曆日期無效或無法組成真實日期。"
             "唔好排盤或猜生肖；如仍在收集資料，只問一次完整公曆出生日期。"
         )
+        return "\n".join(lines)
 
-    lines = [
-        header.rstrip("\n"),
-        f"公曆出生日期：{facts['solar_date']}。",
-        f"農曆日期：{facts['lunar_date']}。",
+    lines.extend(
         (
-            "日常生肖口徑（按農曆正月初一切換）："
-            f"{facts['lunar_year_ganzhi']}年，屬{facts['popular_zodiac']}。"
-        ),
-    ]
+            f"公曆出生日期：{facts['solar_date']}。",
+            f"農曆日期：{facts['lunar_date']}。",
+            (
+                "日常生肖口徑（按農曆正月初一切換）："
+                f"{facts['lunar_year_ganzhi']}年，屬{facts['popular_zodiac']}。"
+            ),
+            _benming_context_line(facts["popular_zodiac"], current_facts),
+        )
+    )
     if status == "complete_date":
         lines.append(
             "用戶尚未提供數字化當地出生時間，禁止輸出完整四柱、"
@@ -316,6 +436,11 @@ def build_birth_facts_context(
             (
                 "四柱年柱口徑（年、月柱按精確節氣時刻）："
                 f"{facts['bazi_year_ganzhi']}，年支屬{facts['bazi_zodiac']}。"
+            ),
+            _benming_context_line(
+                facts["bazi_zodiac"],
+                current_facts,
+                label="用戶八字年支",
             ),
             f"四柱（年 月 日 時）：{facts['four_pillars']}。",
             (
@@ -358,6 +483,8 @@ __all__ = [
     "BirthDetails",
     "build_birth_facts_context",
     "calculate_birth_facts",
+    "calculate_current_year_facts",
     "extract_birth_details",
+    "extract_stated_zodiac",
     "replace_birth_facts_context",
 ]
