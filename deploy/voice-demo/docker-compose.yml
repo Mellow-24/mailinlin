@@ -150,6 +150,7 @@ services:
       - ../../api/services/pipecat/service_factory.py:/app/api/services/pipecat/service_factory.py:ro
       - ../../api/services/pipecat/direct_faq_retrieval.py:/app/api/services/pipecat/direct_faq_retrieval.py:ro
       - ../../api/services/pipecat/direct_final_transcript_processor.py:/app/api/services/pipecat/direct_final_transcript_processor.py:ro
+      - ../../api/services/pipecat/voice_turn_boundary_registry.py:/app/api/services/pipecat/voice_turn_boundary_registry.py:ro
       - ../../api/services/pipecat/consultation_response_guard_processor.py:/app/api/services/pipecat/consultation_response_guard_processor.py:ro
       - ../../api/services/pipecat/pipeline_builder.py:/app/api/services/pipecat/pipeline_builder.py:ro
       - ../../api/services/pipecat/run_pipeline.py:/app/api/services/pipecat/run_pipeline.py:ro
