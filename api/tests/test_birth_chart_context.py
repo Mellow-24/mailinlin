@@ -28,6 +28,17 @@ def test_extracts_arabic_and_spoken_chinese_birth_details() -> None:
     ) == BirthDetails(2003, 2, 1)
 
 
+def test_combines_birth_year_and_month_day_from_separate_voice_turns() -> None:
+    assert extract_birth_details(
+        "我想睇今年運程\n我係1995年出世\n6月27號",
+        current_year=2026,
+    ) == BirthDetails(1995, 6, 27)
+    assert extract_birth_details(
+        "我想睇八字\n九五年\n六月二十七日\n早上9點",
+        current_year=2026,
+    ) == BirthDetails(1995, 6, 27, 9, 0)
+
+
 def test_year_only_is_not_converted_to_a_zodiac() -> None:
     context = build_birth_facts_context(
         "我係2003年出世", current_year=2026, now=SEPTEMBER_2026

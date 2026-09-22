@@ -40,6 +40,10 @@ _FULL_DATE_RE = re.compile(
     rf"(?P<month>{_NUMBER_TOKEN})\s*(?:月|[-/.])\s*"
     rf"(?P<day>{_NUMBER_TOKEN})\s*(?:日|號|号)?"
 )
+_MONTH_DAY_RE = re.compile(
+    rf"(?<![0-9])(?P<month>{_NUMBER_TOKEN})\s*月\s*"
+    rf"(?P<day>{_NUMBER_TOKEN})\s*(?:日|號|号)?"
+)
 _YEAR_RE = re.compile(rf"(?<![0-9])(?P<year>{_NUMBER_TOKEN})\s*年")
 _CLOCK_TIME_RE = re.compile(
     rf"(?P<period>凌晨|朝早|早上|中午|下晝|下午|夜晚|晚上)?\s*"
@@ -65,6 +69,12 @@ _DATE_SELECTION_RE = re.compile(
 _TERSE_YEAR_ANSWER_RE = re.compile(
     rf"^(?:我(?:係|是)?\s*)?(?P<year>{_NUMBER_TOKEN})\s*年"
     rf"(?:出世|出生)?[\s。！，,]*$"
+)
+_TERSE_MONTH_DAY_ANSWER_RE = re.compile(
+    rf"^(?:我(?:嘅|既|的)?(?:生日)?(?:係|是)?\s*)?"
+    rf"(?P<month>{_NUMBER_TOKEN})\s*月\s*"
+    rf"(?P<day>{_NUMBER_TOKEN})\s*(?:日|號|号)?"
+    rf"(?:出世|出生)?(?:呀|啊|啦|喇|嘅|的)?[\s。！，,]*$"
 )
 _TRADITIONAL_TRANSLATION = str.maketrans(
     {"龙": "龍", "马": "馬", "鸡": "雞", "猪": "豬", "腊": "臘"}
@@ -201,7 +211,40 @@ def extract_birth_details(
             hour, minute = _parse_clock_time(normalized)
         return BirthDetails(year, month, day, hour, minute)
 
-    latest_line = normalized.strip().splitlines()[-1].strip()
+    lines = [line.strip() for line in normalized.strip().splitlines() if line.strip()]
+    known_birth_year: int | None = None
+    split_date_details: BirthDetails | None = None
+    for index, line in enumerate(lines):
+        terse_year_line = _TERSE_YEAR_ANSWER_RE.fullmatch(line)
+        if _EXPLICIT_BIRTH_YEAR_RE.search(line) or terse_year_line:
+            line_years = list(_YEAR_RE.finditer(line))
+            if line_years:
+                raw_year = _parse_number(line_years[-1].group("year"))
+                if raw_year is not None:
+                    known_birth_year = _expand_birth_year(raw_year, current_year)
+
+        month_day_match = _TERSE_MONTH_DAY_ANSWER_RE.fullmatch(line)
+        if month_day_match is None and _EXPLICIT_BIRTH_RE.search(line):
+            month_day_match = _MONTH_DAY_RE.search(line)
+        if known_birth_year is None or month_day_match is None:
+            continue
+        month = _parse_number(month_day_match.group("month"))
+        day = _parse_number(month_day_match.group("day"))
+        if month is None or day is None or known_birth_year > current_year:
+            continue
+        remaining_context = "\n".join(lines[index:])
+        hour, minute = _parse_clock_time(remaining_context)
+        split_date_details = BirthDetails(
+            known_birth_year, month, day, hour, minute
+        )
+
+    # Voice users naturally split a requested date across turns, for example
+    # "1995年出世" followed by "6月27號". Keep those answers as one structured
+    # profile instead of asking for the already-known year again.
+    if split_date_details is not None:
+        return split_date_details
+
+    latest_line = lines[-1] if lines else ""
     terse_year = _TERSE_YEAR_ANSWER_RE.fullmatch(latest_line)
     if not _EXPLICIT_BIRTH_YEAR_RE.search(normalized) and not terse_year:
         return None

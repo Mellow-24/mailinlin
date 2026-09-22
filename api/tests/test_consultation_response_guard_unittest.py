@@ -132,6 +132,22 @@ class TestConsultationResponseGuard(IsolatedAsyncioTestCase):
             "你嘅完整公曆出生日期係點？",
         )
 
+    def test_split_birth_date_is_not_requested_again(self) -> None:
+        consultation = "我想睇今年運程\n我係1995年出世\n6月27號"
+
+        self.assertEqual(
+            guard_module.select_intake_question(2, consultation),
+            "你今次最想集中睇邊一方面？",
+        )
+
+    def test_split_bazi_date_advances_to_birth_time(self) -> None:
+        consultation = "我想睇八字\n九五年\n六月二十七日"
+
+        self.assertEqual(
+            guard_module.select_intake_question(2, consultation),
+            "你當地出生時間大概係幾點？",
+        )
+
     def test_final_fallback_thanks_does_not_repeat_the_previous_faq(self) -> None:
         reference = (
             "[YISHUI_INTERNAL_FAQ_REFERENCE]\n"

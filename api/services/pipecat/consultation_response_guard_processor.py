@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from datetime import datetime
 
 from pipecat.frames.frames import (
     Frame,
@@ -14,6 +15,8 @@ from pipecat.frames.frames import (
     LLMTextFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+
+from api.services.metaphysics.birth_chart_context import extract_birth_details
 
 
 _SENTENCE_RE = re.compile(r"[^。！？!?.]+[。！？!?.]?")
@@ -81,19 +84,6 @@ _DATE_SELECTION_TOPIC_RE = re.compile(
 )
 _NAME_TOPIC_RE = re.compile(r"(?:改名|起名|姓名|名學|名学)")
 _NUMBER_TOPIC_RE = re.compile(r"(?:號碼|号码|車牌|车牌|電話號|电话号码|手機號|手机号)")
-_BIRTH_NUMBER = (
-    r"(?:\d{1,4}|[零〇一二兩两三四五六七八九十]{1,4})"
-)
-_BIRTH_DATE_RE = re.compile(
-    rf"(?:{_BIRTH_NUMBER}\s*[年/.-]\s*{_BIRTH_NUMBER}\s*[月/.-]\s*"
-    rf"{_BIRTH_NUMBER}\s*(?:日|號|号)?"
-    r"|出生年月日|出生日|生日係|生日是)"
-)
-_BIRTH_HOUR_RE = re.compile(
-    r"(?:(?:子|丑|寅|卯|辰|巳|午|未|申|酉|戌|亥)時|"
-    rf"(?:凌晨|朝早|早上|中午|下晝|下午|夜晚|晚上)?\s*{_BIRTH_NUMBER}"
-    r"\s*(?:點|点|時|时|鐘|钟)|時辰|时辰)"
-)
 _DIRECTION_RE = re.compile(
     r"(?:坐\s*[東东南西北]|向\s*[東东南西北]|"
     r"(?:正|東|东|西|南|北|東南|东南|西南|東北|东北|西北)\s*(?:方|向))"
@@ -209,6 +199,21 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
 
     text = _clean_spoken_text(consultation_text)
     topic = _consultation_topic(text)
+    birth_details = extract_birth_details(consultation_text)
+    has_birth_date = False
+    has_birth_time = False
+    if birth_details is not None and birth_details.has_date:
+        try:
+            datetime(
+                birth_details.year,
+                birth_details.month or 0,
+                birth_details.day or 0,
+            )
+        except ValueError:
+            pass
+        else:
+            has_birth_date = True
+            has_birth_time = birth_details.has_time
 
     if topic == "feng_shui":
         if not _DIRECTION_RE.search(text):
@@ -218,7 +223,7 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
     if topic == "feng_shui_with_bazi":
         if not _DIRECTION_RE.search(text):
             return "你間屋大門大概向邊個方位？"
-        if not _BIRTH_DATE_RE.search(text) or not _BIRTH_HOUR_RE.search(text):
+        if not has_birth_date or not has_birth_time:
             return "最後請講一組完整出生資料：公曆日期、當地時間？"
         return "你今次最想改善家宅邊一方面？"
 
@@ -228,9 +233,9 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
         return "你心目中大概係邊段日期？"
 
     if topic == "bazi":
-        if not _BIRTH_DATE_RE.search(text):
+        if not has_birth_date:
             return "你嘅完整公曆出生日期係點？"
-        if not _BIRTH_HOUR_RE.search(text):
+        if not has_birth_time:
             return "你當地出生時間大概係幾點？"
         return "你今次最想集中睇邊一方面？"
 
@@ -240,7 +245,7 @@ def select_intake_question(turn: int, consultation_text: str) -> str:
     if topic == "number":
         return "你想睇邊一組號碼？"
 
-    if not _BIRTH_DATE_RE.search(text):
+    if not has_birth_date:
         return "你嘅完整公曆出生日期係點？"
     return "你今次最想集中睇邊一方面？"
 
