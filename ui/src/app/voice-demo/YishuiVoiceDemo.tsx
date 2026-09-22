@@ -15,7 +15,13 @@ import {
   Sparkles,
   Volume2,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -417,6 +423,23 @@ function localizeVoiceMessage(message: VoiceMessage): VoiceMessage {
 }
 
 export function YishuiVoiceDemo({ embedToken }: { embedToken: string }) {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const hideSupportLauncher = () => {
+      window.$chatwoot?.toggle?.("close");
+      window.$chatwoot?.toggleBubbleVisibility?.("hide");
+    };
+
+    root.classList.add("yishui-voice-demo-page");
+    hideSupportLauncher();
+    window.addEventListener("chatwoot:ready", hideSupportLauncher);
+
+    return () => {
+      root.classList.remove("yishui-voice-demo-page");
+      window.removeEventListener("chatwoot:ready", hideSupportLauncher);
+    };
+  }, []);
+
   const widgetRef = useRef<DograhVoiceWidget | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const openingAudioRef = useRef<HTMLAudioElement | null>(null);

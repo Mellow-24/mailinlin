@@ -419,6 +419,12 @@
   animation: yishui-thinking-ring 1.3s ease-out infinite;
 }
 
+/* The demo has its own voice controls. Suppress the global Chatwoot support
+   launcher even when the reverse proxy exposes this route at `/`. */
+.yishui-voice-demo-page .woot--bubble-holder {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .yishui-wave-bar,
   .yishui-thinking-ring {

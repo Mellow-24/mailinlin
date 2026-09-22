@@ -111,7 +111,7 @@ describe("YishuiVoiceDemo", () => {
   });
 
   it("uses Hong Kong Cantonese copy without exposing a cloud provider", () => {
-    render(<YishuiVoiceDemo embedToken="embed-test" />);
+    const { unmount } = render(<YishuiVoiceDemo embedToken="embed-test" />);
 
     expect(screen.getByText("AI 即時語音體驗")).not.toBeNull();
     expect(screen.getByText("準備好就可以開始")).not.toBeNull();
@@ -120,6 +120,14 @@ describe("YishuiVoiceDemo", () => {
     expect(document.body.textContent).not.toContain("阿里");
     expect(document.body.textContent).not.toContain("百煉");
     expect(document.body.textContent).not.toContain("易水 AI 顧問");
+    expect(
+      document.documentElement.classList.contains("yishui-voice-demo-page"),
+    ).toBe(true);
+
+    unmount();
+    expect(
+      document.documentElement.classList.contains("yishui-voice-demo-page"),
+    ).toBe(false);
   });
 
   it("preconnects the voice pipeline before the consultation button is clicked", async () => {
